@@ -3,22 +3,19 @@ import os
 import wmi
 import json
 import win32gui
-import requests
 import subprocess
 from pathlib import Path
 from PySide6.QtCore import QDir, QSettings
 from PySide6.QtGui import QImage, QIcon, QPixmap
+from global_vars import request_content
 
 
 def get_isp_name() -> str:
-    req = requests.get("https://ipinfo.io/")
-    if req.status_code == 200:
-        try:
-            data = json.loads(req.content)
-            return data.get("org", "[Not found]")
-        except json.JSONDecodeError:
-            return "[Decode Error]"
-    return "[Return Error]"
+    try:
+        data = json.loads(request_content("https://ipinfo.io/"))
+        return data.get("org", "[Not found]")
+    except json.JSONDecodeError:
+        return "[Decode Error]"
 
 
 def get_win_manufacturer() -> list[str]:
@@ -83,4 +80,3 @@ def extract_win_icon_from_file(icon: str, default: QIcon) -> QIcon:
         return QIcon(QPixmap(image))
     else:
         return default
-

@@ -1,4 +1,5 @@
 # coding: utf8
+import requests
 from PySide6 import QtWidgets
 
 SoftwareStatusRole = 0x0101
@@ -32,3 +33,10 @@ def get_with_chained_keys(dic: dict, keys: list, default=None):
     if len(keys) == 1:
         return dic[k]
     return get_with_chained_keys(dic[k], keys[1:], default)
+
+
+def request_content(url: str) -> bytes:
+    req = requests.get(url)
+    if req.status_code == 200:
+        return req.content
+    return b""

@@ -1,5 +1,5 @@
 # coding: utf8
-from PySide6 import QtWidgets
+from PySide6 import QtWidgets, QtCore, QtGui
 from util_func import (
     get_isp_name,
     get_win_manufacturer,
@@ -45,8 +45,6 @@ class UiWgBasic(object):
         self.vly_gbx_license.addWidget(self.pte_license)
         self.pte_license.setReadOnly(True)
 
-        # self.vly_m.addStretch(1)
-
 
 class WgBasic(QtWidgets.QWidget):
 
@@ -61,3 +59,34 @@ class WgBasic(QtWidgets.QWidget):
 
         self.ui.pte_license.setPlainText(get_win_license())
 
+    def update_safe(self, isp_safe_info: dict, manu_safe_info: dict):
+
+        def set_palette(is_safe: bool | None, lne_w: QtWidgets.QLineEdit):
+            pal = lne_w.palette()
+            if is_safe is True:
+                pal.setColor(QtGui.QPalette.ColorRole.Text, QtCore.Qt.GlobalColor.blue)
+            elif is_safe is False:
+                pal.setColor(QtGui.QPalette.ColorRole.Text, QtCore.Qt.GlobalColor.red)
+            else:
+                pal.setColor(QtGui.QPalette.ColorRole.Text, QtCore.Qt.GlobalColor.black)
+            lne_w.setPalette(pal)
+
+        isp_text = self.ui.lne_isp.text()
+        if isp_text in isp_safe_info:
+            is_isp_safe = isp_safe_info[isp_text]["safe"]
+            set_palette(is_isp_safe, self.ui.lne_isp)
+
+        manu_text = self.ui.lne_manufacturer.text()
+        if manu_text in manu_safe_info:
+            is_manu_safe = manu_safe_info[manu_text]["safe"]
+            set_palette(is_manu_safe, self.ui.lne_manufacturer)
+
+    def export_unknown(self) -> dict:
+        unknown = {}
+        text_role = QtGui.QPalette.ColorRole.Text
+        black = QtCore.Qt.GlobalColor.black
+        if self.ui.lne_isp.palette().color(text_role) == black:
+            unknown["isp"] = self.ui.lne_isp.text()
+        if self.ui.lne_manufacturer.palette().color(text_role) == black:
+            unknown["manufacturer"] = self.ui.lne_manufacturer.text()
+        return unknown
