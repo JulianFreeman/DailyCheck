@@ -3,6 +3,7 @@ import sys
 from PySide6 import QtWidgets
 from wg_basic import WgBasic
 from wg_software import WgSoftware
+from wg_extensions import WgExtensions
 
 import daily_check_rc
 
@@ -21,9 +22,11 @@ class UiMainWindow(object):
 
         self.wg_basic = WgBasic(window)
         self.wg_software = WgSoftware(window)
+        self.wg_extensions = WgExtensions(window)
 
-        # self.tw_m.addTab(self.wg_basic, "基本信息")
+        self.tw_m.addTab(self.wg_basic, "基本信息")
         self.tw_m.addTab(self.wg_software, "已安装软件")
+        self.tw_m.addTab(self.wg_extensions, "已安装插件")
 
 
 class MainWindow(QtWidgets.QWidget):

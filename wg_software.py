@@ -4,8 +4,7 @@ from util_func import (
     get_win_installed_software,
     extract_win_icon_from_file,
 )
-
-SoftwareStatusRole = 0x0101
+from global_vars import SoftwareStatusRole
 
 
 class UiWgSoftware(object):
@@ -41,10 +40,11 @@ class SoftwareListModel(QtCore.QAbstractListModel):
         super().__init__(parent)
         self.all_software = get_win_installed_software()
         self.all_software_wz_qic = {}
+        blank_icon = QtGui.QIcon(":/images/blank_128.png")
         for s in self.all_software:
             self.all_software_wz_qic[s] = extract_win_icon_from_file(
                 self.all_software[s],
-                QtGui.QIcon(":/images/blank_128.png")
+                blank_icon
             )
         self.names = sorted(self.all_software.keys(), key=lambda x: x.lower())
         self.filter_dict = {}
@@ -76,7 +76,7 @@ class WgSoftware(QtWidgets.QWidget):
         self.software_list_model = SoftwareListModel(self)
         self.ui.lv_software.setModel(self.software_list_model)
 
-        self.ui.pbn_export_unknown.clicked.connect(self.on_pbn_export_unknown_clicked)
+        # self.ui.pbn_export_unknown.clicked.connect(self.on_pbn_export_unknown_clicked)
 
     def on_pbn_export_unknown_clicked(self):
         unknown_software = {}
