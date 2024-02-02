@@ -7,7 +7,7 @@ from mw_dailycheck import MwDailyCheck
 
 import daily_check_rc
 
-version = (0, 1, 0)
+version = (0, 2, 0)
 
 ORG_NAME = "JnPrograms"
 APP_NAME = "DailyCheck"
@@ -18,14 +18,14 @@ def set_default_settings():
     user_path = os.path.expanduser("~")
     user_data_path_map = {
         "win32": {
-            "Chrome": Path(user_path, r"AppData\Local\Google\Chrome\User Data"),
-            "Edge": Path(user_path, r"AppData\Local\Microsoft\Edge\User Data"),
-            "Brave": Path(user_path, r"AppData\Local\BraveSoftware\Brave-Browser\User Data"),
+            "Chrome": str(Path(user_path, r"AppData\Local\Google\Chrome\User Data")),
+            "Edge": str(Path(user_path, r"AppData\Local\Microsoft\Edge\User Data")),
+            "Brave": str(Path(user_path, r"AppData\Local\BraveSoftware\Brave-Browser\User Data")),
         },
         "darwin": {
-            "Chrome": Path(user_path, "Library/Application Support/Google/Chrome"),
-            "Edge": Path(user_path, "Library/Application Support/Microsoft Edge"),
-            "Brave": Path(user_path, "Library/Application Support/BraveSoftware/Brave-Browser"),
+            "Chrome": str(Path(user_path, "Library/Application Support/Google/Chrome")),
+            "Edge": str(Path(user_path, "Library/Application Support/Microsoft Edge")),
+            "Brave": str(Path(user_path, "Library/Application Support/BraveSoftware/Brave-Browser")),
         },
     }
     exec_path_map = {
@@ -42,13 +42,20 @@ def set_default_settings():
     }
     user_data_path = user_data_path_map[plat]
     exec_path = exec_path_map[plat]
+    settings_map = {
+        "ChromeExec": exec_path["Chrome"],
+        "EdgeExec": exec_path["Edge"],
+        "BraveExec": exec_path["Brave"],
+        "ChromeData": user_data_path["Chrome"],
+        "EdgeData": user_data_path["Edge"],
+        "BraveData": user_data_path["Brave"],
+    }
     us = QtCore.QSettings()
-    us.setValue("ChromeExec", exec_path["Chrome"])
-    us.setValue("EdgeExec", exec_path["Edge"])
-    us.setValue("BraveExec", exec_path["Brave"])
-    us.setValue("ChromeData", user_data_path["Chrome"])
-    us.setValue("EdgeData", user_data_path["Edge"])
-    us.setValue("BraveData", user_data_path["Brave"])
+    exist_keys = us.childKeys()
+    for s in settings_map:
+        if s not in exist_keys:
+            us.setValue(s, settings_map[s])
+            # print(f"Add key {s}")
 
 
 def main():

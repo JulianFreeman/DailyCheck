@@ -70,10 +70,12 @@ def get_extension_icon_path(ext_icons: dict[str, str], ext_path: str, profile_pa
         icon_file = icon_file[1:]
 
     full_path = Path(profile_path, "Extensions", ext_path, icon_file)
+    if not full_path.exists():
+        return ""
     return str(full_path)
 
 
-def scan_extensions(browser: str, is_chrome_compat=False) -> tuple[ExtensionsData, ProfilesData]:
+def scan_extensions(browser: str, is_compat=False) -> tuple[ExtensionsData, ProfilesData]:
     us = QtCore.QSettings()
     user_data_path = str(us.value(f"{browser}Data", ""))
     if len(user_data_path) == 0 or not Path(user_data_path).exists():
@@ -82,10 +84,12 @@ def scan_extensions(browser: str, is_chrome_compat=False) -> tuple[ExtensionsDat
     profile_data = scan_profiles(user_data_path)
     extensions_data: ExtensionsData = {}
 
-    if browser == "Chrome" and is_chrome_compat:
+    if is_compat:
         pref_file = "Preferences"
     else:
         pref_file = "Secure Preferences"
+
+    # print(pref_file)
 
     for profile_id in profile_data:
         profile_path = Path(user_data_path, profile_id)

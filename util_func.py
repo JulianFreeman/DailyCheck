@@ -69,7 +69,7 @@ def extract_win_icon_from_file(icon: str, default: QIcon) -> QIcon:
     icon = icon.replace("'", "")
     if not os.path.exists(icon):
         return default
-    if not icon.endswith(("exe", "EXE")):
+    if not icon.endswith(("exe", "EXE", "dll", "DLL")):
         return QIcon(icon)
 
     large, small = win32gui.ExtractIconEx(icon, 0)

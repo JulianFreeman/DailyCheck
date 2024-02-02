@@ -60,7 +60,7 @@ class DaShowProfiles(QtWidgets.QDialog):
 
     def __init__(self,
                  browser: str,
-                 is_chrome_compat: bool,
+                 is_compat: bool,
                  profiles_data: ProfilesData,
                  ext_id: str,
                  ext_name: str,
@@ -71,7 +71,7 @@ class DaShowProfiles(QtWidgets.QDialog):
         self.setWindowTitle(ext_name)
         self.setWindowIcon(ext_icon)
         self.browser = browser
-        self.is_chrome_compat = is_chrome_compat
+        self.is_compat = is_compat
 
         self.process = QtCore.QProcess(self)
 
@@ -132,7 +132,7 @@ class DaShowProfiles(QtWidgets.QDialog):
     def on_pbn_delete_selected_clicked(self):
         us = QtCore.QSettings()
         user_data_path = str(us.value(f"{self.browser}Data", ""))
-        if self.browser == "Chrome" and self.is_chrome_compat:
+        if self.is_compat:
             pref_name = "Preferences"
         else:
             pref_name = "Secure Preferences"

@@ -24,7 +24,7 @@ class UiWgExtensions(object):
         self.cbx_safe.setChecked(True)
         self.cbx_unsafe.setChecked(True)
         self.cbx_unknown.setChecked(True)
-        self.cbx_chrome_compat = QtWidgets.QCheckBox("谷歌兼容模式", window)
+        self.cbx_compat = QtWidgets.QCheckBox("兼容模式", window)
         self.pbn_update = QtWidgets.QPushButton("更新", window)
         self.pbn_settings = QtWidgets.QPushButton("设置", window)
         self.hly_top.addWidget(self.cmbx_browsers)
@@ -32,7 +32,7 @@ class UiWgExtensions(object):
         self.hly_top.addWidget(self.cbx_unsafe)
         self.hly_top.addWidget(self.cbx_unknown)
         self.hly_top.addStretch(1)
-        self.hly_top.addWidget(self.cbx_chrome_compat)
+        self.hly_top.addWidget(self.cbx_compat)
         self.hly_top.addWidget(self.pbn_update)
         self.hly_top.addWidget(self.pbn_settings)
 
@@ -51,17 +51,20 @@ class BaseExtensionsListModel(QtCore.QAbstractListModel):
         self.safe_info = {}  # type: dict[str, dict]
         self.blank_icon = QtGui.QIcon(":/images/blank_128.png")
 
-    def update(self, **kwargs):
+        self.last_is_compat = False
+
+    def update(self, is_compat=False):
         raise NotImplementedError
 
-    def update_ext(self, browser: str, is_chrome_compat=False):
+    def update_ext(self, browser: str, is_compat=False):
         """内部用"""
         self.all_profiles.clear()
         self.all_extensions.clear()
         self.names.clear()
         self.icons.clear()
 
-        self.all_extensions, self.all_profiles = scan_extensions(browser, is_chrome_compat)
+        self.all_extensions, self.all_profiles = scan_extensions(browser, is_compat)
+        self.last_is_compat = is_compat
         for ext_id in self.all_extensions:
             name = self.all_extensions[ext_id].name
             icon = self.all_extensions[ext_id].icon
@@ -108,20 +111,20 @@ class BaseExtensionsListModel(QtCore.QAbstractListModel):
 
 class ChromeExtensionsListModel(BaseExtensionsListModel):
 
-    def update(self, is_chrome_compat=False):
-        super().update_ext("Chrome", is_chrome_compat)
+    def update(self, is_compat=False):
+        super().update_ext("Chrome", is_compat)
 
 
 class EdgeExtensionsListModel(BaseExtensionsListModel):
 
-    def update(self, **kwargs):
-        super().update_ext("Edge")
+    def update(self, is_compat=False):
+        super().update_ext("Edge", is_compat)
 
 
 class BraveExtensionsListModel(BaseExtensionsListModel):
 
-    def update(self, **kwargs):
-        super().update_ext("Brave")
+    def update(self, is_compat=False):
+        super().update_ext("Brave", is_compat)
 
 
 class BrowsersListModel(QtCore.QAbstractListModel):
@@ -168,7 +171,7 @@ class WgExtensions(QtWidgets.QWidget):
         }
         self.switch_model(self.get_current_browser())
 
-        self.ui.cbx_chrome_compat.clicked.connect(self.on_cbx_chrome_compat_clicked)
+        self.ui.cbx_compat.clicked.connect(self.on_cbx_compat_clicked)
         self.ui.cmbx_browsers.currentTextChanged.connect(self.on_cmbx_browsers_current_text_changed)
         self.ui.cbx_safe.clicked.connect(self.on_cbx_safe_clicked)
         self.ui.cbx_unsafe.clicked.connect(self.on_cbx_unsafe_clicked)
@@ -199,7 +202,7 @@ class WgExtensions(QtWidgets.QWidget):
     def update_model(self, browser: str):
         model = self.ext_list_models[browser]
         self.show_all_rows()
-        model.update(is_chrome_compat=self.ui.cbx_chrome_compat.isChecked())
+        model.update(is_compat=self.ui.cbx_compat.isChecked())
         self.apply_rows_hidden()
 
     def switch_model(self, browser: str):
@@ -207,15 +210,18 @@ class WgExtensions(QtWidgets.QWidget):
             self.update_model(browser)
             self.model_is_initial[browser] = False
 
-        self.ui.lv_extensions.setModel(self.ext_list_models[browser])
+        model = self.ext_list_models[browser]
+        self.show_all_rows()
+        self.ui.lv_extensions.setModel(model)
+        self.apply_rows_hidden()
+        # 单纯的切换浏览器不一定会导致更新数据，所以需要同步兼容模式的设置
+        self.ui.cbx_compat.setChecked(model.last_is_compat)
 
-    def on_cbx_chrome_compat_clicked(self):
-        if self.get_current_browser() == "Chrome":
-            self.update_model("Chrome")
+    def on_cbx_compat_clicked(self):
+        self.update_model(self.get_current_browser())
 
     def on_cmbx_browsers_current_text_changed(self, text: str):
         self.switch_model(text)
-        self.ui.cbx_chrome_compat.setVisible(self.ui.cmbx_browsers.currentText() == "Chrome")
 
     def filters_clicked(self, safe_mark: bool | None, checked: bool):
         model = self.ext_list_models[self.get_current_browser()]
@@ -243,7 +249,7 @@ class WgExtensions(QtWidgets.QWidget):
         node = model.all_extensions[ext_id]
         da_sp = DaShowProfiles(
             self.get_current_browser(),
-            self.ui.cbx_chrome_compat.isChecked(),
+            self.ui.cbx_compat.isChecked(),
             model.all_profiles,
             ext_id,
             node.name,

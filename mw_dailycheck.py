@@ -1,6 +1,7 @@
 # coding: utf8
 import json
 from pathlib import Path
+from datetime import datetime
 from PySide6 import QtWidgets, QtGui, QtCore
 from wg_basic import WgBasic
 from wg_software import WgSoftware
@@ -81,8 +82,8 @@ class MwDailyCheck(QtWidgets.QMainWindow):
         dirname = QtWidgets.QFileDialog.getExistingDirectory(self, "导出未知")
         if len(dirname) == 0:
             return
-
-        ex_file = Path(dirname, f"未知信息.json")
+        now = datetime.strftime(datetime.now(), "%y%m%d%H%M")
+        ex_file = Path(dirname, f"未知信息{now}.json")
         if accept_warning(self, ex_file.exists(), "警告", "文件已存在，确认覆盖吗？"):
             return
 
