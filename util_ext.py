@@ -1,29 +1,12 @@
 # coding: utf8
 import os
-import sys
 import json
+import shutil
 from pathlib import Path
+# from typing import Callable
+from PySide6 import QtCore, QtWidgets
 from dataclasses import dataclass, field
 from global_vars import get_with_chained_keys
-
-
-PLAT = sys.platform
-USER_PATH = os.path.expanduser("~")
-
-USER_DATA_PATH_MAP = {
-    "win32": {
-        "Chrome": Path(USER_PATH, "AppData", "Local", "Google", "Chrome", "User Data"),
-        "Edge": Path(USER_PATH, "AppData", "Local", "Microsoft", "Edge", "User Data"),
-        "Brave": Path(USER_PATH, "AppData", "Local", "BraveSoftware", "Brave-Browser", "User Data"),
-    },
-    "darwin": {
-        "Chrome": Path(USER_PATH, "Library", "Application Support", "Google", "Chrome"),
-        "Edge": Path(USER_PATH, "Library", "Application Support", "Microsoft Edge"),
-        "Brave": Path(USER_PATH, "Library", "Application Support", "BraveSoftware", "Brave-Browser"),
-    },
-}
-
-USER_DATA_PATH = USER_DATA_PATH_MAP[PLAT]
 
 
 @dataclass
@@ -38,8 +21,11 @@ class ProfileNode(object):
 ProfilesData = dict[str, ProfileNode]
 
 
-def scan_profiles(browser: str) -> ProfilesData:
-    local_state_path = Path(USER_DATA_PATH[browser], "Local State")
+def scan_profiles(user_data_path: str) -> ProfilesData:
+    local_state_path = Path(user_data_path, "Local State")
+    if not local_state_path.exists():
+        return {}
+
     local_state_data: dict = json.loads(local_state_path.read_text(encoding="utf8"))
     info_cache_data: dict = get_with_chained_keys(local_state_data, ["profile", "info_cache"])
 
@@ -61,6 +47,7 @@ def scan_profiles(browser: str) -> ProfilesData:
 
 @dataclass
 class ExtensionNode(object):
+    # ids: str
     icon: str
     name: str
     # path: str
@@ -86,18 +73,22 @@ def get_extension_icon_path(ext_icons: dict[str, str], ext_path: str, profile_pa
     return str(full_path)
 
 
-def scan_extensions(browser: str, is_chrome_compat=False) -> ExtensionsData:
-    profile_data = scan_profiles(browser)
+def scan_extensions(browser: str, is_chrome_compat=False) -> tuple[ExtensionsData, ProfilesData]:
+    us = QtCore.QSettings()
+    user_data_path = str(us.value(f"{browser}Data", ""))
+    if len(user_data_path) == 0 or not Path(user_data_path).exists():
+        return {}, {}
+
+    profile_data = scan_profiles(user_data_path)
     extensions_data: ExtensionsData = {}
 
-    browser_data_path = USER_DATA_PATH[browser]
     if browser == "Chrome" and is_chrome_compat:
         pref_file = "Preferences"
     else:
         pref_file = "Secure Preferences"
 
     for profile_id in profile_data:
-        profile_path = Path(browser_data_path, profile_id)
+        profile_path = Path(user_data_path, profile_id)
         secure_pref_path = Path(profile_path, pref_file)
         secure_pref_data: dict = json.loads(secure_pref_path.read_text(encoding="utf8"))
         ext_settings_data: dict = get_with_chained_keys(secure_pref_data, ["extensions", "settings"], dict())
@@ -122,6 +113,7 @@ def scan_extensions(browser: str, is_chrome_compat=False) -> ExtensionsData:
 
             if ext_id not in extensions_data:
                 ext_node = ExtensionNode(
+                    # ids=ext_id,
                     icon=get_extension_icon_path(ext_manifest.get("icons", {}), ext_path, profile_path),
                     name=ext_manifest.get("name", ""),
                     # path=ext_data.get("path", ""),
@@ -132,4 +124,110 @@ def scan_extensions(browser: str, is_chrome_compat=False) -> ExtensionsData:
                 ext_node = extensions_data[ext_id]
                 ext_node.profiles += [profile_id]
 
-    return extensions_data
+    return extensions_data, profile_data
+
+
+# ================== Deletion ====================
+
+
+def delete_extensions(profile_path: str, pref_name: str, ext_ids: list[str]) -> tuple[int, int]:
+    total = len(ext_ids)
+
+    e_pref_path = Path(profile_path, pref_name)
+    e_pref_data = json.loads(e_pref_path.read_text("utf8"))  # type: dict
+    ext_set_data = get_with_chained_keys(e_pref_data, ["extensions", "settings"])  # type: dict
+    if ext_set_data is None:
+        return 0, total
+
+    s_pref_path = Path(profile_path, "Secure Preferences")
+    pref_path = Path(profile_path, "Preferences")
+    s_pref_data = json.loads(s_pref_path.read_text("utf8"))  # type: dict
+    pref_data = json.loads(pref_path.read_text("utf8"))  # type: dict
+
+    macs = get_with_chained_keys(s_pref_data, ["protection", "macs", "extensions", "settings"])  # type: dict
+    if macs is None:
+        return 0, total
+
+    success = 0
+    for ids in ext_ids:
+        c1 = ext_set_data.pop(ids, None)
+        c2 = macs.pop(ids, None)
+        if None not in (c1, c2):
+            success += 1
+
+    pinned_ext = get_with_chained_keys(pref_data, ["extensions", "pinned_extensions"])  # type: list
+    if pinned_ext is not None:
+        for ids in ext_ids:
+            if ids in pinned_ext:
+                pinned_ext.remove(ids)
+
+    s_pref_path.write_text(json.dumps(s_pref_data, ensure_ascii=False), "utf8")
+    pref_path.write_text(json.dumps(pref_data, ensure_ascii=False), "utf8")
+
+    extensions_path_d = Path(profile_path, "Extensions")
+    for ids in ext_ids:
+        # 对于离线安装的插件，目录可能不在这个位置，所以就不删了
+        ext_folder_path = Path(extensions_path_d, ids)
+        if ext_folder_path.exists():
+            shutil.rmtree(ext_folder_path, ignore_errors=True)
+
+    return success, total
+
+
+class DeleteThread(QtCore.QThread):
+
+    deleted = QtCore.Signal(int, int)
+
+    def __init__(self,
+                 profile_path: str,
+                 pref_name: str,
+                 ext_ids: list[str],
+                 parent: QtCore.QObject = None):
+        super().__init__(parent)
+        self.profile_path = profile_path
+        self.pref_name = pref_name
+        self.ext_ids = ext_ids
+        self.finished.connect(self.deleteLater)
+
+    def run(self):
+        success, total = delete_extensions(self.profile_path, self.pref_name, self.ext_ids)
+        self.deleted.emit(success, total)
+
+
+class DeleteThreadManager(QtCore.QObject):
+
+    def __init__(self, total: int, progress_bar: QtWidgets.QProgressBar, parent: QtWidgets.QDialog):
+        super().__init__(parent)
+        self.deletion_progress = 0
+        self.success_deletion = 0
+        self.fail_deletion = 0
+        self.total_for_deletion = total
+        self.deletion_info = "成功：{success} 个；失败：{fail} 个；总共 {total} 个。"
+        self.progress_bar = progress_bar
+        self.parent = parent
+
+        self.progress_bar.setMaximum(total)
+        self.progress_bar.setValue(0)
+
+        self.progress_bar.valueChanged.connect(self.on_pgb_del_value_changed)
+
+    def start(self, thread: DeleteThread):
+        thread.deleted.connect(self.on_del_thd_deleted)
+        thread.start()
+
+    def on_del_thd_deleted(self, success: int, total: int):
+        self.success_deletion += success
+        self.deletion_progress += total
+        self.fail_deletion += total - success
+        self.progress_bar.setValue(self.deletion_progress)
+
+    def on_pgb_del_value_changed(self, value: int):
+        if value == self.total_for_deletion:
+            QtWidgets.QMessageBox.information(
+                self.parent, "删除结果", self.deletion_info.format(
+                    success=self.success_deletion,
+                    fail=self.fail_deletion,
+                    total=self.total_for_deletion
+                )
+            )
+            self.parent.accept()

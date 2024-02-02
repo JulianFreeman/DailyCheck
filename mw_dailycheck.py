@@ -96,6 +96,5 @@ class MwDailyCheck(QtWidgets.QMainWindow):
         }
         unknown_all.update(unknown_isp_manu)
 
-        with open(ex_file, "w", encoding="utf8") as f:
-            json.dump(unknown_all, f, indent=4, ensure_ascii=False)
+        ex_file.write_text(json.dumps(unknown_all, indent=4, ensure_ascii=False), "utf8")
         QtWidgets.QMessageBox.information(self, "提示", f"已导出到 {ex_file}")

@@ -1,10 +1,12 @@
 # coding: utf8
 from PySide6 import QtWidgets, QtCore, QtGui
-from util_ext import scan_extensions, ExtensionsData
+from util_ext import scan_extensions, ExtensionsData, ProfilesData
 from global_vars import (
     ExtensionStatusRole,
     ExtensionIdRole,
 )
+from da_ext_settings import DaExtSettings
+from da_show_profiles import DaShowProfiles
 
 
 class UiWgExtensions(object):
@@ -24,6 +26,7 @@ class UiWgExtensions(object):
         self.cbx_unknown.setChecked(True)
         self.cbx_chrome_compat = QtWidgets.QCheckBox("谷歌兼容模式", window)
         self.pbn_update = QtWidgets.QPushButton("更新", window)
+        self.pbn_settings = QtWidgets.QPushButton("设置", window)
         self.hly_top.addWidget(self.cmbx_browsers)
         self.hly_top.addWidget(self.cbx_safe)
         self.hly_top.addWidget(self.cbx_unsafe)
@@ -31,6 +34,7 @@ class UiWgExtensions(object):
         self.hly_top.addStretch(1)
         self.hly_top.addWidget(self.cbx_chrome_compat)
         self.hly_top.addWidget(self.pbn_update)
+        self.hly_top.addWidget(self.pbn_settings)
 
         self.lv_extensions = QtWidgets.QListView(window)
         self.vly_m.addWidget(self.lv_extensions)
@@ -40,6 +44,7 @@ class BaseExtensionsListModel(QtCore.QAbstractListModel):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.all_profiles = {}  # type: ProfilesData
         self.all_extensions = {}  # type: ExtensionsData
         self.names = []  # type: list[tuple[str, str]]
         self.icons = {}  # type: dict[str, QtGui.QIcon]
@@ -51,11 +56,12 @@ class BaseExtensionsListModel(QtCore.QAbstractListModel):
 
     def update_ext(self, browser: str, is_chrome_compat=False):
         """内部用"""
+        self.all_profiles.clear()
         self.all_extensions.clear()
         self.names.clear()
         self.icons.clear()
 
-        self.all_extensions = scan_extensions(browser, is_chrome_compat)
+        self.all_extensions, self.all_profiles = scan_extensions(browser, is_chrome_compat)
         for ext_id in self.all_extensions:
             name = self.all_extensions[ext_id].name
             icon = self.all_extensions[ext_id].icon
@@ -168,6 +174,12 @@ class WgExtensions(QtWidgets.QWidget):
         self.ui.cbx_unsafe.clicked.connect(self.on_cbx_unsafe_clicked)
         self.ui.cbx_unknown.clicked.connect(self.on_cbx_unknown_clicked)
         self.ui.pbn_update.clicked.connect(self.on_pbn_update_clicked)
+        self.ui.pbn_settings.clicked.connect(self.on_pbn_settings_clicked)
+        self.ui.lv_extensions.doubleClicked.connect(self.on_lv_extensions_double_clicked)
+
+    def on_pbn_settings_clicked(self):
+        da_es = DaExtSettings(self)
+        da_es.exec()
 
     def get_current_browser(self) -> str:
         return self.ui.cmbx_browsers.currentData(QtCore.Qt.ItemDataRole.DisplayRole)
@@ -224,6 +236,22 @@ class WgExtensions(QtWidgets.QWidget):
 
     def on_pbn_update_clicked(self):
         self.update_model(self.get_current_browser())
+
+    def on_lv_extensions_double_clicked(self, index: QtCore.QModelIndex):
+        model = self.ext_list_models[self.get_current_browser()]
+        ext_id = model.data(index, ExtensionIdRole)
+        node = model.all_extensions[ext_id]
+        da_sp = DaShowProfiles(
+            self.get_current_browser(),
+            self.ui.cbx_chrome_compat.isChecked(),
+            model.all_profiles,
+            ext_id,
+            node.name,
+            model.icons[ext_id],
+            node.profiles,
+            self
+        )
+        da_sp.exec()
 
     def update_safe(self, safe_info: dict):
         for browser in self.ext_list_models:
